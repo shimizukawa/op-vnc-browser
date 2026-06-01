@@ -42,6 +42,15 @@ to use secure browse with op (1password) + vnc
    export OP_CERT_PASSWORD_REF='op://Private/ClientCert/password'
    ```
 
+   If you launch the browser from the noVNC Fluxbox menu, also persist the references for the desktop session:
+
+   ```bash
+   chmod +x scripts/configure-browser-cert-env.sh
+   ./scripts/configure-browser-cert-env.sh \
+     'op://Private/ClientCert/client.p12' \
+     'op://Private/ClientCert/password'
+   ```
+
 3. Reinstall the browser launchers once
 
    ```bash
@@ -77,6 +86,9 @@ When `OP_CERT_P12_REF` and `OP_CERT_PASSWORD_REF` are set, the launcher creates 
    ```bash
    export OP_CERT_P12_REF='op://Private/ClientCert/client.p12'
    export OP_CERT_PASSWORD_REF='op://Private/ClientCert/password'
+   ./scripts/configure-browser-cert-env.sh \
+     "$OP_CERT_P12_REF" \
+     "$OP_CERT_PASSWORD_REF"
    bash .devcontainer/setup-browser-menu.sh
    ```
 
@@ -91,3 +103,5 @@ When `OP_CERT_P12_REF` and `OP_CERT_PASSWORD_REF` are set, the launcher creates 
 This test certificate has `extendedKeyUsage = clientAuth`, so it is suitable for validating the browser import path. It is not trusted by real services unless they trust the generated test CA.
 
 If `openssl pkcs12` reports ASN.1 errors after using shell redirection, the file was likely corrupted while writing binary data through stdout. Use `op read --out-file ...` for P12 and other binary attachments.
+
+If Firefox launched from the noVNC menu does not see the certificate while Chrome or terminal commands do, the usual cause is that Fluxbox does not inherit environment variables exported later in a shell. Persist the references with `scripts/configure-browser-cert-env.sh` so menu-launched browsers can read them.

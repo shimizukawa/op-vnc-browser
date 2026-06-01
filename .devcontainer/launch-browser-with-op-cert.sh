@@ -10,6 +10,13 @@ browser_bin="$1"
 browser_kind="$2"
 shift 2
 
+config_path="${OP_BROWSER_ENV_FILE:-$HOME/.config/op-vnc-browser/launcher.env}"
+if [[ -f "$config_path" ]]; then
+	# shellcheck disable=SC1090
+	. "$config_path"
+	export OP_CERT_P12_REF OP_CERT_PASSWORD_REF
+fi
+
 language_env=(LANGUAGE=ja LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8)
 
 launch_browser() {

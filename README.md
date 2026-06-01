@@ -1,6 +1,27 @@
 # op-vnc-browser
 to use secure browse with op (1password) + vnc
 
+## Prepare the 1Password items for the client certificate
+
+1. Prepare the 1Password item names you will use
+
+   - choose a vault name, item name, and password field name before setup
+   - secret references used in this README follow the form `op://<vault>/<item>/<field-or-file>`
+   - example naming used below:
+     - vault: `<vault>` such as `Private`
+     - item: `<item>` such as `ClientCert`
+     - P12 file name inside the Document item: `<file>` such as `client.p12`
+     - password field name: `<field>` such as `password`
+
+2. Save the client certificate and password in 1Password
+
+   - store the P12 or PFX file as a Document item
+   - note the secret reference for the file as `op://<vault>/<item>/<file>`
+   - store the certificate password in a field and note its secret reference as `op://<vault>/<item>/<field>`
+   - example:
+     - `op://Private/ClientCert/client.p12`
+     - `op://Private/ClientCert/password`
+
 ## Setup 1password service account
 
 1. Create service account in 1password
@@ -9,37 +30,26 @@ to use secure browse with op (1password) + vnc
    - create new service account and copy the TOKEN.
    - save token into 1password as you wish.
 
-2. Verify the setup manually when needed
-
-   - start codespace
-   - run `OP_SERVICE_ACCOUNT_TOKEN='<token>' op whoami` in terminal, you should see something like this:
-
-     ```
-     $ OP_SERVICE_ACCOUNT_TOKEN='<token>' op whoami
-     URL:               https://<organization>.1password.com
-     Integration ID:    <integration_id>
-     User Type:         SERVICE_ACCOUNT
-     ```
-
 ## Launch browser with client certificate in noVNC
 
-1. Save the client certificate and password in 1Password
+1. Start the Codespace and run the final setup command
 
-   - store the P12 or PFX file as a Document item
-   - note the secret reference for the file, for example `op://Private/ClientCert/client.p12`
-   - store the certificate password in a field and note its secret reference, for example `op://Private/ClientCert/password`
-
-2. Run the final setup command after the Codespace starts
+   - start codespace
+   - run `bash setup` after setting `OP_CERT_P12_REF` and `OP_CERT_PASSWORD_REF`
+   - enter the service account token when prompted
+   - if setup succeeds, the token can access the required 1Password items and setup the client certificate
 
    ```bash
-   export OP_CERT_P12_REF='op://Private/ClientCert/client.p12'
-   export OP_CERT_PASSWORD_REF='op://Private/ClientCert/password'
-   bash setup
+   $ export OP_CERT_P12_REF='op://<vault>/<item>/<file>'
+   $ export OP_CERT_PASSWORD_REF='op://<vault>/<item>/<field>'
+   $ bash setup
+   1Password service account token:
+   Browser certificate launcher configured.
    ```
 
    `OP_CERT_P12_REF` and `OP_CERT_PASSWORD_REF` are read from the environment. The command prompts only for the 1Password service account token with hidden input, materializes the certificate and password into `/run/op-vnc-browser`, writes only those volatile paths to `launcher.env`, and regenerates the browser launchers for the noVNC session.
 
-3. Open the noVNC desktop and start Firefox or Chrome from the Fluxbox menu
+2. Open the noVNC desktop and start Firefox or Chrome from the Fluxbox menu
 
 After `bash setup`, the launcher reads the materialized certificate and password from `/run/op-vnc-browser`, creates a temporary NSS database, and starts the browser with an ephemeral profile. When the browser exits, the temporary profile is removed automatically. The staged certificate files also disappear when the container stops because they live on tmpfs.
 
@@ -58,18 +68,18 @@ This devcontainer mounts a dedicated tmpfs at `/run/op-vnc-browser` and the laun
 
 2. Save the bundle in 1Password
 
-   - open 1Password and create a new Document item named `ClientCert`
+   - open 1Password and create a new Document item named as you like, for example `ClientCert`
    - upload `test-certs/client.p12`
-   - add a text field named `password` with value `op-vnc-browser-test`
-   - note the two secret references, for example:
+   - add a text field named as you like, for example `password`, with value `op-vnc-browser-test`
+   - note the two secret references in the form `op://<vault>/<item>/<field-or-file>`, for example:
      - `op://Private/ClientCert/client.p12`
      - `op://Private/ClientCert/password`
 
 3. Point the launcher at the stored secrets
 
    ```bash
-   export OP_CERT_P12_REF='op://Private/ClientCert/client.p12'
-   export OP_CERT_PASSWORD_REF='op://Private/ClientCert/password'
+   export OP_CERT_P12_REF='op://<vault>/<item>/<file>'
+   export OP_CERT_PASSWORD_REF='op://<vault>/<item>/<field>'
    bash setup
    ```
 

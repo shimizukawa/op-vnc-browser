@@ -2,7 +2,7 @@
 	"image": "mcr.microsoft.com/devcontainers/universal",
 	"features": {
 		"ghcr.io/devcontainers/features/desktop-lite:1": {},
-		"ghcr.io/flexwie/devcontainer-features/op:1": {},
+		"ghcr.io/flexwie/devcontainer-features/op:1": {}
 	},
 	"runArgs": [
 		"--tmpfs", "/root/.config/chromium:rw,exec,size=512m",
@@ -13,7 +13,7 @@
 	"forwardPorts": [6080, 5901],
 	"portsAttributes": {
 		"6080": { "label": "noVNC Desktop" },
-		"5901": { "label": "VNC Direct" },
+		"5901": { "label": "VNC Direct" }
 	},
-	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y chromium-browser",
+	"postCreateCommand": "bash .devcontainer/setup-browser-menu.sh"
 }

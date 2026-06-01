@@ -14,7 +14,7 @@ config_path="${OP_BROWSER_ENV_FILE:-$HOME/.config/op-vnc-browser/launcher.env}"
 if [[ -f "$config_path" ]]; then
 	# shellcheck disable=SC1090
 	. "$config_path"
-	export OP_CERT_P12_REF OP_CERT_PASSWORD_REF OP_SERVICE_ACCOUNT_TOKEN OP_CONNECT_HOST OP_CONNECT_TOKEN
+	export OP_CERT_P12_PATH OP_CERT_PASSWORD_PATH
 fi
 
 log_dir="$HOME/.cache/op-vnc-browser"
@@ -75,7 +75,7 @@ launch_browser() {
 	esac
 }
 
-if [[ -z "${OP_CERT_P12_REF:-}" || -z "${OP_CERT_PASSWORD_REF:-}" ]]; then
+if [[ -z "${OP_CERT_P12_PATH:-}" || -z "${OP_CERT_PASSWORD_PATH:-}" ]]; then
 	launch_browser "$@"
 fi
 
@@ -87,17 +87,15 @@ require_command() {
 	fi
 }
 
-require_command op
 require_command certutil
 require_command pk12util
 
-auth_mode="none"
-if [[ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
-	auth_mode="service-account"
-elif [[ -n "${OP_CONNECT_HOST:-}" || -n "${OP_CONNECT_TOKEN:-}" ]]; then
-	auth_mode="connect"
+if [[ ! -r "$OP_CERT_P12_PATH" || ! -r "$OP_CERT_PASSWORD_PATH" ]]; then
+	log_line "mode=plain missing_materialized_cert p12=${OP_CERT_P12_PATH:-unset} pass=${OP_CERT_PASSWORD_PATH:-unset}"
+	launch_browser "$@"
 fi
-log_line "mode=secure home=$HOME config=$config_path cert_ref=${OP_CERT_P12_REF:-unset} auth=$auth_mode"
+
+log_line "mode=secure home=$HOME config=$config_path staged_p12=$OP_CERT_P12_PATH staged_password=$OP_CERT_PASSWORD_PATH"
 
 required_tmp_kb=131072
 
@@ -111,8 +109,8 @@ cleanup() {
 trap cleanup EXIT
 
 p12_path="$tmp_root/client-cert.p12"
-op read --out-file "$p12_path" "$OP_CERT_P12_REF"
-p12_password="$(op read "$OP_CERT_PASSWORD_REF")"
+cp "$OP_CERT_P12_PATH" "$p12_path"
+p12_password="$(cat "$OP_CERT_PASSWORD_PATH")"
 
 case "$browser_kind" in
 	firefox)

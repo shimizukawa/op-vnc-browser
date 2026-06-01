@@ -37,11 +37,11 @@ to use secure browse with op (1password) + vnc
    bash setup
    ```
 
-   `OP_CERT_P12_REF` and `OP_CERT_PASSWORD_REF` are read from the environment. The command prompts only for the 1Password service account token with hidden input, writes `launcher.env`, and regenerates the browser launchers for the noVNC session.
+   `OP_CERT_P12_REF` and `OP_CERT_PASSWORD_REF` are read from the environment. The command prompts only for the 1Password service account token with hidden input, materializes the certificate and password into `/run/op-vnc-browser`, writes only those volatile paths to `launcher.env`, and regenerates the browser launchers for the noVNC session.
 
 3. Open the noVNC desktop and start Firefox or Chrome from the Fluxbox menu
 
-When `OP_CERT_P12_REF` and `OP_CERT_PASSWORD_REF` are set, the launcher creates a temporary NSS database, imports the certificate with `op read`, and starts the browser with an ephemeral profile. When the browser exits, the temporary profile and imported certificate are removed automatically.
+After `bash setup`, the launcher reads the materialized certificate and password from `/run/op-vnc-browser`, creates a temporary NSS database, and starts the browser with an ephemeral profile. When the browser exits, the temporary profile is removed automatically. The staged certificate files also disappear when the container stops because they live on tmpfs.
 
 This devcontainer mounts a dedicated tmpfs at `/run/op-vnc-browser` and the launcher requires that path for ephemeral browser state. It does not fall back to `/tmp` or `/dev/shm`. After changing [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json), rebuild or recreate the Codespace/container so the mount exists before testing.
 
@@ -78,8 +78,8 @@ This devcontainer mounts a dedicated tmpfs at `/run/op-vnc-browser` and the laun
    ```bash
    workdir=/run/op-vnc-browser/manual-check
    mkdir -p "$workdir"
-   op read --out-file "$workdir/client.p12" "$OP_CERT_P12_REF"
-   openssl pkcs12 -in "$workdir/client.p12" -passin 'pass:op-vnc-browser-test' -info -noout
+   cp /run/op-vnc-browser/materialized-$(id -u)/client-cert.p12 "$workdir/client.p12"
+   openssl pkcs12 -in "$workdir/client.p12" -passin file:/run/op-vnc-browser/materialized-$(id -u)/client-cert.password -info -noout
    rm -rf "$workdir"
    ```
 
@@ -89,4 +89,4 @@ If `openssl pkcs12` reports ASN.1 errors after using shell redirection, the file
 
 If Firefox launched from the noVNC menu does not see the certificate while Chrome or terminal commands do, the usual cause is that Fluxbox does not inherit environment variables exported later in a shell. Persist the references with `bash setup` or `scripts/configure-browser-cert-env.sh` so menu-launched browsers can read them.
 
-If the browser does not start at all and `~/.xsession-errors` shows `No accounts configured for use with 1Password CLI`, rerun `bash setup` and re-enter the token so the launcher can authenticate.
+If the browser does not start at all after a rebuild or container restart, rerun `bash setup` so the certificate is materialized again in `/run/op-vnc-browser`.

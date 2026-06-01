@@ -14,12 +14,53 @@ config_path="${OP_BROWSER_ENV_FILE:-$HOME/.config/op-vnc-browser/launcher.env}"
 if [[ -f "$config_path" ]]; then
 	# shellcheck disable=SC1090
 	. "$config_path"
-	export OP_CERT_P12_REF OP_CERT_PASSWORD_REF
+	export OP_CERT_P12_REF OP_CERT_PASSWORD_REF OP_SERVICE_ACCOUNT_TOKEN OP_CONNECT_HOST OP_CONNECT_TOKEN
 fi
+
+log_dir="$HOME/.cache/op-vnc-browser"
+log_path="$log_dir/launcher.log"
+mkdir -p "$log_dir"
+
+log_line() {
+	printf '%s pid=%s kind=%s %s\n' "$(date -Iseconds)" "$$" "$browser_kind" "$1" >> "$log_path"
+}
+
+available_kb() {
+	local dir_path="$1"
+	df -Pk "$dir_path" 2>/dev/null | awk 'NR==2 {print $4}'
+}
+
+select_tmp_parent() {
+	local required_kb="$1"
+	local free_kb
+	local candidate="${OP_BROWSER_TMP_PARENT:-}"
+
+	if [[ -z "$candidate" ]]; then
+		echo "OP_BROWSER_TMP_PARENT is not set; configure a dedicated ephemeral mount for browser state" >&2
+		exit 1
+	fi
+	if [[ ! -d "$candidate" || ! -w "$candidate" ]]; then
+		echo "OP_BROWSER_TMP_PARENT is not writable: $candidate" >&2
+		exit 1
+	fi
+
+	free_kb="$(available_kb "$candidate")"
+	if [[ -z "$free_kb" ]]; then
+		echo "could not determine free space for OP_BROWSER_TMP_PARENT: $candidate" >&2
+		exit 1
+	fi
+	if (( free_kb < required_kb )); then
+		echo "OP_BROWSER_TMP_PARENT does not have enough free space: $candidate (${free_kb}KB < ${required_kb}KB)" >&2
+		exit 1
+	fi
+
+	echo "$candidate"
+}
 
 language_env=(LANGUAGE=ja LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8)
 
 launch_browser() {
+	log_line "mode=plain home=$HOME config=$config_path args=$*"
 	case "$browser_kind" in
 		firefox)
 			exec env "${language_env[@]}" "$browser_bin" "$@"
@@ -50,10 +91,18 @@ require_command op
 require_command certutil
 require_command pk12util
 
-tmp_parent="${TMPDIR:-/tmp}"
-if [[ -d /dev/shm && -w /dev/shm ]]; then
-	tmp_parent="/dev/shm"
+auth_mode="none"
+if [[ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
+	auth_mode="service-account"
+elif [[ -n "${OP_CONNECT_HOST:-}" || -n "${OP_CONNECT_TOKEN:-}" ]]; then
+	auth_mode="connect"
 fi
+log_line "mode=secure home=$HOME config=$config_path cert_ref=${OP_CERT_P12_REF:-unset} auth=$auth_mode"
+
+required_tmp_kb=131072
+
+tmp_parent="$(select_tmp_parent "$required_tmp_kb")"
+log_line "tmp_parent=$tmp_parent required_kb=$required_tmp_kb"
 
 tmp_root="$(mktemp -d "$tmp_parent/op-browser-XXXXXX")"
 cleanup() {
@@ -71,6 +120,7 @@ case "$browser_kind" in
 		mkdir -p "$profile_dir"
 		certutil -N -d "sql:$profile_dir" --empty-password
 		pk12util -i "$p12_path" -d "sql:$profile_dir" -W "$p12_password"
+		log_line "launch profile=$profile_dir browser=$browser_bin"
 		exec env "${language_env[@]}" "$browser_bin" --profile "$profile_dir" --no-remote "$@"
 		;;
 	chrome)
@@ -79,7 +129,8 @@ case "$browser_kind" in
 		mkdir -p "$home_dir/.pki/nssdb" "$profile_dir"
 		certutil -N -d "sql:$home_dir/.pki/nssdb" --empty-password
 		pk12util -i "$p12_path" -d "sql:$home_dir/.pki/nssdb" -W "$p12_password"
-		exec env HOME="$home_dir" "${language_env[@]}" "$browser_bin" --lang=ja --user-data-dir="$profile_dir" --no-first-run --password-store=basic "$@"
+		log_line "launch profile=$profile_dir home_override=$home_dir browser=$browser_bin"
+		exec env HOME="$home_dir" "${language_env[@]}" "$browser_bin" --lang=ja --no-sandbox --disable-dev-shm-usage --user-data-dir="$profile_dir" --no-first-run --password-store=basic "$@"
 		;;
 	*)
 		echo "unsupported browser kind: $browser_kind" >&2

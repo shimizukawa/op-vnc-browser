@@ -40,6 +40,7 @@ to use secure browse with op (1password) + vnc
    ```bash
    export OP_CERT_P12_REF='op://Private/ClientCert/client.p12'
    export OP_CERT_PASSWORD_REF='op://Private/ClientCert/password'
+   export OP_SERVICE_ACCOUNT_TOKEN='your-service-account-token'
    ```
 
    If you launch the browser from the noVNC Fluxbox menu, also persist the references for the desktop session:
@@ -51,6 +52,8 @@ to use secure browse with op (1password) + vnc
      'op://Private/ClientCert/password'
    ```
 
+    `OP_SERVICE_ACCOUNT_TOKEN` is copied into the launcher config automatically when it is present in the shell.
+
 3. Reinstall the browser launchers once
 
    ```bash
@@ -60,6 +63,8 @@ to use secure browse with op (1password) + vnc
 4. Open the noVNC desktop and start Firefox or Chrome from the Fluxbox menu
 
 When `OP_CERT_P12_REF` and `OP_CERT_PASSWORD_REF` are set, the launcher creates a temporary NSS database, imports the certificate with `op read`, and starts the browser with an ephemeral profile. When the browser exits, the temporary profile and imported certificate are removed automatically.
+
+This devcontainer mounts a dedicated tmpfs at `/run/op-vnc-browser` and the launcher requires that path for ephemeral browser state. It does not fall back to `/tmp` or `/dev/shm`. After changing [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json), rebuild or recreate the Codespace/container so the mount exists before testing.
 
 ## Create a test client certificate and store it in 1Password
 
@@ -86,6 +91,7 @@ When `OP_CERT_P12_REF` and `OP_CERT_PASSWORD_REF` are set, the launcher creates 
    ```bash
    export OP_CERT_P12_REF='op://Private/ClientCert/client.p12'
    export OP_CERT_PASSWORD_REF='op://Private/ClientCert/password'
+    export OP_SERVICE_ACCOUNT_TOKEN='your-service-account-token'
    ./scripts/configure-browser-cert-env.sh \
      "$OP_CERT_P12_REF" \
      "$OP_CERT_PASSWORD_REF"
@@ -95,9 +101,11 @@ When `OP_CERT_P12_REF` and `OP_CERT_PASSWORD_REF` are set, the launcher creates 
 4. Validate import before opening noVNC if you want a quick CLI check
 
    ```bash
-   op read --out-file /tmp/client.p12 "$OP_CERT_P12_REF"
-   openssl pkcs12 -in /tmp/client.p12 -passin 'pass:op-vnc-browser-test' -info -noout
-   rm -f /tmp/client.p12
+   workdir=/run/op-vnc-browser/manual-check
+   mkdir -p "$workdir"
+   op read --out-file "$workdir/client.p12" "$OP_CERT_P12_REF"
+   openssl pkcs12 -in "$workdir/client.p12" -passin 'pass:op-vnc-browser-test' -info -noout
+   rm -rf "$workdir"
    ```
 
 This test certificate has `extendedKeyUsage = clientAuth`, so it is suitable for validating the browser import path. It is not trusted by real services unless they trust the generated test CA.
@@ -105,3 +113,5 @@ This test certificate has `extendedKeyUsage = clientAuth`, so it is suitable for
 If `openssl pkcs12` reports ASN.1 errors after using shell redirection, the file was likely corrupted while writing binary data through stdout. Use `op read --out-file ...` for P12 and other binary attachments.
 
 If Firefox launched from the noVNC menu does not see the certificate while Chrome or terminal commands do, the usual cause is that Fluxbox does not inherit environment variables exported later in a shell. Persist the references with `scripts/configure-browser-cert-env.sh` so menu-launched browsers can read them.
+
+If the browser does not start at all and `~/.xsession-errors` shows `No accounts configured for use with 1Password CLI`, the noVNC session is missing `OP_SERVICE_ACCOUNT_TOKEN`. Export it in the shell before running `scripts/configure-browser-cert-env.sh` so the launcher can authenticate.

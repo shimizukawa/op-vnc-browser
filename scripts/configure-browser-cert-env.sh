@@ -10,10 +10,23 @@ config_dir="$HOME/.config/op-vnc-browser"
 config_path="$config_dir/launcher.env"
 
 mkdir -p "$config_dir"
-cat > "$config_path" <<EOF
-OP_CERT_P12_REF='$1'
-OP_CERT_PASSWORD_REF='$2'
-EOF
+quote_shell() {
+	printf "%q" "$1"
+}
+
+{
+	printf 'OP_CERT_P12_REF=%s\n' "$(quote_shell "$1")"
+	printf 'OP_CERT_PASSWORD_REF=%s\n' "$(quote_shell "$2")"
+	if [[ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
+		printf 'OP_SERVICE_ACCOUNT_TOKEN=%s\n' "$(quote_shell "$OP_SERVICE_ACCOUNT_TOKEN")"
+	fi
+	if [[ -n "${OP_CONNECT_HOST:-}" ]]; then
+		printf 'OP_CONNECT_HOST=%s\n' "$(quote_shell "$OP_CONNECT_HOST")"
+	fi
+	if [[ -n "${OP_CONNECT_TOKEN:-}" ]]; then
+		printf 'OP_CONNECT_TOKEN=%s\n' "$(quote_shell "$OP_CONNECT_TOKEN")"
+	fi
+} > "$config_path"
 
 chmod 600 "$config_path"
 echo "Wrote $config_path"

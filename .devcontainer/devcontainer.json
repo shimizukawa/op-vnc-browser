@@ -5,11 +5,12 @@
 		"ghcr.io/flexwie/devcontainer-features/op:1": {}
 	},
 	"runArgs": [
-		"--tmpfs", "/root/.config/chromium:rw,exec,size=512m",
-		"--tmpfs", "/root/.cache/chromium:rw,noexec,nosuid,size=256m",
-		"--tmpfs", "/tmp:rw,noexec,nosuid,size=256m",
+		"--tmpfs", "/run/op-vnc-browser:rw,noexec,nosuid,nodev,mode=1777,size=512m",
 		"--rm"
 	],
+	"containerEnv": {
+		"OP_BROWSER_TMP_PARENT": "/run/op-vnc-browser"
+	},
 	"forwardPorts": [6080, 5901],
 	"portsAttributes": {
 		"6080": { "label": "noVNC Desktop" },

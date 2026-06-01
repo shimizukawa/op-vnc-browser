@@ -7,6 +7,8 @@ cache_dir="$HOME/.cache/op-vnc-browser"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 firefox_dir="$install_root/firefox"
 chrome_dir="$install_root/google-chrome"
+firefox_locale="ja"
+firefox_version="151.0.2"
 secure_launcher="$install_root/launch-browser-with-op-cert.sh"
 firefox_bin="$bin_dir/firefox"
 chrome_bin="$bin_dir/google-chrome"
@@ -16,19 +18,22 @@ x_www_browser_bin="$bin_dir/x-www-browser"
 mkdir -p "$HOME/.fluxbox" "$bin_dir" "$cache_dir" "$install_root"
 
 download_firefox() {
-	if [[ -x "$firefox_dir/firefox" ]]; then
+   if [[ -x "$firefox_dir/firefox" && -f "$firefox_dir/.op-vnc-browser-locale" ]] && [[ "$(<"$firefox_dir/.op-vnc-browser-locale")" == "$firefox_locale" ]]; then
 		return
 	fi
 
    local archive="$cache_dir/firefox.tar.xz"
-   curl --noproxy '*' -fsSL -A 'Mozilla/5.0' "https://download-installer.cdn.mozilla.net/pub/firefox/releases/151.0.2/linux-x86_64/en-US/firefox-151.0.2.tar.xz" -o "$archive"
+   rm -rf "$firefox_dir"
+   curl --noproxy '*' -fsSL -A 'Mozilla/5.0' "https://download-installer.cdn.mozilla.net/pub/firefox/releases/${firefox_version}/linux-x86_64/${firefox_locale}/firefox-${firefox_version}.tar.xz" -o "$archive"
 	rm -rf "$firefox_dir"
    tar -xJf "$archive" -C "$install_root"
 	if [[ -d "$install_root/firefox" ]]; then
+      echo "$firefox_locale" > "$install_root/firefox/.op-vnc-browser-locale"
 		return
 	fi
 	if [[ -d "$install_root/firefox-esr" ]]; then
 		mv "$install_root/firefox-esr" "$firefox_dir"
+      echo "$firefox_locale" > "$firefox_dir/.op-vnc-browser-locale"
 	fi
 }
 
@@ -54,14 +59,22 @@ EOF
 	chmod +x "$path"
 }
 
-download_firefox
-download_chrome
-install -m 755 "$script_dir/launch-browser-with-op-cert.sh" "$secure_launcher"
+configure_novnc_language() {
+   local novnc_dir
+   novnc_dir="$(find /usr/local/novnc -maxdepth 1 -type d -name 'noVNC-*' | head -n 1)"
+   if [[ -z "$novnc_dir" ]]; then
+      return
+   fi
 
-write_launcher "$firefox_bin" "$firefox_dir/firefox" firefox
-write_launcher "$chrome_bin" "$chrome_dir/opt/google/chrome/google-chrome" chrome
-write_launcher "$chromium_browser_bin" "$chrome_dir/opt/google/chrome/google-chrome" chrome
-write_launcher "$x_www_browser_bin" "$chrome_dir/opt/google/chrome/google-chrome" chrome
+   if [[ -f "$novnc_dir/vnc.html" ]]; then
+      sudo sed -i 's#<html lang="en"#<html lang="ja"#' "$novnc_dir/vnc.html"
+   fi
+
+   if [[ -f "$novnc_dir/app/localization.js" ]]; then
+      sudo sed -i "s/this.language = 'en';\/\/ Default: US English/this.language = 'ja';\/\/ Default: Japanese/" "$novnc_dir/app/localization.js"
+      sudo sed -i "0,/this.language = 'en';/s//this.language = 'ja';/" "$novnc_dir/app/localization.js"
+   fi
+}
 
 cat > "$HOME/.fluxbox/menu" <<EOF
 [begin] (Fluxbox)
@@ -108,5 +121,27 @@ cat > "$HOME/.fluxbox/menu" <<EOF
 
 [end]
 EOF
+
+cat > "$HOME/.fluxbox/overlay" <<EOF
+window.font: IPAGothic-10
+menu.title.font: IPAGothic-10:bold
+menu.frame.font: IPAGothic-10
+toolbar.clock.font: IPAGothic-10
+toolbar.workspace.font: IPAGothic-10
+toolbar.iconbar.focused.font: IPAGothic-10:bold
+toolbar.iconbar.unfocused.font: IPAGothic-10
+EOF
+
+configure_novnc_language
+
+install -m 755 "$script_dir/launch-browser-with-op-cert.sh" "$secure_launcher"
+
+write_launcher "$firefox_bin" "$firefox_dir/firefox" firefox
+write_launcher "$chrome_bin" "$chrome_dir/opt/google/chrome/google-chrome" chrome
+write_launcher "$chromium_browser_bin" "$chrome_dir/opt/google/chrome/google-chrome" chrome
+write_launcher "$x_www_browser_bin" "$chrome_dir/opt/google/chrome/google-chrome" chrome
+
+download_firefox
+download_chrome
 
 echo "Fluxbox menu updated with Firefox and Chrome"

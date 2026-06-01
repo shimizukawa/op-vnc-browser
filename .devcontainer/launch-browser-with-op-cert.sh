@@ -10,8 +10,25 @@ browser_bin="$1"
 browser_kind="$2"
 shift 2
 
+language_env=(LANGUAGE=ja LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8)
+
+launch_browser() {
+	case "$browser_kind" in
+		firefox)
+			exec env "${language_env[@]}" "$browser_bin" "$@"
+			;;
+		chrome)
+			exec env "${language_env[@]}" "$browser_bin" --lang=ja "$@"
+			;;
+		*)
+			echo "unsupported browser kind: $browser_kind" >&2
+			exit 64
+			;;
+	esac
+}
+
 if [[ -z "${OP_CERT_P12_REF:-}" || -z "${OP_CERT_PASSWORD_REF:-}" ]]; then
-	exec "$browser_bin" "$@"
+	launch_browser "$@"
 fi
 
 require_command() {
@@ -47,7 +64,7 @@ case "$browser_kind" in
 		mkdir -p "$profile_dir"
 		certutil -N -d "sql:$profile_dir" --empty-password
 		pk12util -i "$p12_path" -d "sql:$profile_dir" -W "$p12_password"
-		exec "$browser_bin" --profile "$profile_dir" --no-remote "$@"
+		exec env "${language_env[@]}" "$browser_bin" --profile "$profile_dir" --no-remote "$@"
 		;;
 	chrome)
 		home_dir="$tmp_root/home"
@@ -55,7 +72,7 @@ case "$browser_kind" in
 		mkdir -p "$home_dir/.pki/nssdb" "$profile_dir"
 		certutil -N -d "sql:$home_dir/.pki/nssdb" --empty-password
 		pk12util -i "$p12_path" -d "sql:$home_dir/.pki/nssdb" -W "$p12_password"
-		exec env HOME="$home_dir" "$browser_bin" --user-data-dir="$profile_dir" --no-first-run --password-store=basic "$@"
+		exec env HOME="$home_dir" "${language_env[@]}" "$browser_bin" --lang=ja --user-data-dir="$profile_dir" --no-first-run --password-store=basic "$@"
 		;;
 	*)
 		echo "unsupported browser kind: $browser_kind" >&2

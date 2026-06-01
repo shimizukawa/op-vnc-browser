@@ -15,5 +15,5 @@
 		"6080": { "label": "noVNC Desktop" },
 		"5901": { "label": "VNC Direct" }
 	},
-	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y fonts-ipafont-gothic fonts-ipafont-mincho libnss3-tools && sudo fc-cache -f && bash .devcontainer/setup-browser-menu.sh"
+	"postCreateCommand": "bash .devcontainer/postCreateCommand.sh"
 }

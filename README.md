@@ -54,6 +54,8 @@ to use secure browse with op (1password) + vnc
 
     `OP_SERVICE_ACCOUNT_TOKEN` is copied into the launcher config automatically when it is present in the shell.
 
+    If you want the config to come back automatically after rebuild or restart, make `OP_CERT_P12_REF`, `OP_CERT_PASSWORD_REF`, and `OP_SERVICE_ACCOUNT_TOKEN` available at container startup, for example with Codespaces secrets. `postStartCommand` re-runs the browser setup and regenerates `launcher.env` whenever those variables are present.
+
 3. Reinstall the browser launchers once
 
    ```bash

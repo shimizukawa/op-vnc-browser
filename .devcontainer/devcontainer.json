@@ -1,0 +1,19 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/universal",
+	"features": {
+		"ghcr.io/devcontainers/features/desktop-lite:1": {},
+		"ghcr.io/flexwie/devcontainer-features/op:1": {},
+	},
+	"runArgs": [
+		"--tmpfs", "/root/.config/chromium:rw,exec,size=512m",
+		"--tmpfs", "/root/.cache/chromium:rw,noexec,nosuid,size=256m",
+		"--tmpfs", "/tmp:rw,noexec,nosuid,size=256m",
+		"--rm"
+	],
+	"forwardPorts": [6080, 5901],
+	"portsAttributes": {
+		"6080": { "label": "noVNC Desktop" },
+		"5901": { "label": "VNC Direct" },
+	},
+	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y chromium-browser",
+}

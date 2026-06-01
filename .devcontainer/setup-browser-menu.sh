@@ -4,8 +4,10 @@ set -euo pipefail
 install_root="$HOME/.local/share/op-vnc-browser"
 bin_dir="$HOME/.local/bin"
 cache_dir="$HOME/.cache/op-vnc-browser"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 firefox_dir="$install_root/firefox"
 chrome_dir="$install_root/google-chrome"
+secure_launcher="$install_root/launch-browser-with-op-cert.sh"
 firefox_bin="$bin_dir/firefox"
 chrome_bin="$bin_dir/google-chrome"
 chromium_browser_bin="$bin_dir/chromium-browser"
@@ -44,20 +46,22 @@ download_chrome() {
 write_launcher() {
 	local path="$1"
 	local target="$2"
+   local browser_kind="$3"
 	cat > "$path" <<EOF
 #!/bin/sh
-exec "$target" "\$@"
+exec "$secure_launcher" "$target" "$browser_kind" "\$@"
 EOF
 	chmod +x "$path"
 }
 
 download_firefox
 download_chrome
+install -m 755 "$script_dir/launch-browser-with-op-cert.sh" "$secure_launcher"
 
-write_launcher "$firefox_bin" "$firefox_dir/firefox"
-write_launcher "$chrome_bin" "$chrome_dir/opt/google/chrome/google-chrome"
-write_launcher "$chromium_browser_bin" "$chrome_dir/opt/google/chrome/google-chrome"
-write_launcher "$x_www_browser_bin" "$chrome_dir/opt/google/chrome/google-chrome"
+write_launcher "$firefox_bin" "$firefox_dir/firefox" firefox
+write_launcher "$chrome_bin" "$chrome_dir/opt/google/chrome/google-chrome" chrome
+write_launcher "$chromium_browser_bin" "$chrome_dir/opt/google/chrome/google-chrome" chrome
+write_launcher "$x_www_browser_bin" "$chrome_dir/opt/google/chrome/google-chrome" chrome
 
 cat > "$HOME/.fluxbox/menu" <<EOF
 [begin] (Fluxbox)

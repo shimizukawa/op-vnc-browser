@@ -6,7 +6,6 @@
 	},
 	"runArgs": [
 		"--tmpfs", "/run/op-vnc-browser:rw,noexec,nosuid,nodev,mode=1777,size=512m",
-		"--rm"
 	],
 	"containerEnv": {
 		"OP_BROWSER_TMP_PARENT": "/run/op-vnc-browser"

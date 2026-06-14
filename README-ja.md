@@ -35,19 +35,21 @@ op (1Password) と VNC を使って安全にブラウジングするための環
 1. Codespace を起動して最終セットアップを実行する
 
    - Codespace を起動する
-   - `OP_CERT_P12_REF` と `OP_CERT_PASSWORD_REF` を設定したうえで `bash setup` を実行する
+   - `OP_CERTS` を設定したうえで `bash setup` を実行する
    - プロンプトが表示されたら service account token を入力する
    - setup が成功すれば、その token で必要な 1Password アイテムにアクセスし、クライアント証明書がセットアップされる
 
    ```bash
-   $ export OP_CERT_P12_REF='op://<vault>/<item>/<file>'
-   $ export OP_CERT_PASSWORD_REF='op://<vault>/<item>/<field>'
+   $ export OP_CERTS='[
+     {"p12_ref":"op://<vault>/<item1>/<file>","password_ref":"op://<vault>/<item1>/<field>"},
+     {"p12_ref":"op://<vault>/<item2>/<file>","password_ref":"op://<vault>/<item2>/<field>"}
+   ]'
    $ bash setup
    1Password service account token:
    Browser certificate launcher configured.
    ```
 
-   `OP_CERT_P12_REF` と `OP_CERT_PASSWORD_REF` は環境変数から読み取られます。このコマンドは 1Password の service account token だけを hidden input で受け取り、証明書と password を `/run/op-vnc-browser` に実体化し、それらの揮発パスだけを `launcher.env` に書き出したうえで、noVNC 用ブラウザランチャーを再生成します。
+   `OP_CERTS` は JSON として環境変数から読み取られます。各要素には `p12_ref` と `password_ref` が必要です。このコマンドは 1Password の service account token だけを hidden input で受け取り、各証明書ペアを `/run/op-vnc-browser` に実体化し、`OP_CERTS_MATERIALIZED` として揮発パスを `launcher.env` に書き出したうえで、noVNC 用ブラウザランチャーを再生成します。
 
 2. noVNC デスクトップから Firefox または Chrome を起動する
 
@@ -78,8 +80,9 @@ op (1Password) と VNC を使って安全にブラウジングするための環
 3. 保存した secret reference を launcher に設定する
 
    ```bash
-   export OP_CERT_P12_REF='op://<vault>/<item>/<file>'
-   export OP_CERT_PASSWORD_REF='op://<vault>/<item>/<field>'
+   export OP_CERTS='[
+     {"p12_ref":"op://<vault>/<item>/<file>","password_ref":"op://<vault>/<item>/<field>"}
+   ]'
    bash setup
    ```
 

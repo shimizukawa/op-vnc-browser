@@ -14,7 +14,7 @@ config_path="${OP_BROWSER_ENV_FILE:-$HOME/.config/op-vnc-browser/launcher.env}"
 if [[ -f "$config_path" ]]; then
 	# shellcheck disable=SC1090
 	. "$config_path"
-	export OP_CERT_P12_PATH OP_CERT_PASSWORD_PATH
+	export OP_CERTS_MATERIALIZED
 fi
 
 log_dir="$HOME/.cache/op-vnc-browser"
@@ -75,27 +75,20 @@ launch_browser() {
 	esac
 }
 
-if [[ -z "${OP_CERT_P12_PATH:-}" || -z "${OP_CERT_PASSWORD_PATH:-}" ]]; then
+if [[ -z "${OP_CERTS_MATERIALIZED:-}" ]]; then
 	launch_browser "$@"
 fi
 
 require_command() {
 	local command_name="$1"
 	if ! command -v "$command_name" >/dev/null 2>&1; then
-		echo "$command_name is required when OP_CERT_P12_REF and OP_CERT_PASSWORD_REF are set" >&2
+		echo "$command_name is required when OP_CERTS is configured" >&2
 		exit 1
 	fi
 }
 
 require_command certutil
 require_command pk12util
-
-if [[ ! -r "$OP_CERT_P12_PATH" || ! -r "$OP_CERT_PASSWORD_PATH" ]]; then
-	log_line "mode=plain missing_materialized_cert p12=${OP_CERT_P12_PATH:-unset} pass=${OP_CERT_PASSWORD_PATH:-unset}"
-	launch_browser "$@"
-fi
-
-log_line "mode=secure home=$HOME config=$config_path staged_p12=$OP_CERT_P12_PATH staged_password=$OP_CERT_PASSWORD_PATH"
 
 required_tmp_kb=131072
 
@@ -108,16 +101,63 @@ cleanup() {
 }
 trap cleanup EXIT
 
-p12_path="$tmp_root/client-cert.p12"
-cp "$OP_CERT_P12_PATH" "$p12_path"
-p12_password="$(cat "$OP_CERT_PASSWORD_PATH")"
+materialized_certs_file="$tmp_root/materialized-certs.tsv"
+if ! python3 - "$materialized_certs_file" <<'PY'
+import json
+import os
+import sys
+
+output_path = sys.argv[1]
+raw = os.environ.get("OP_CERTS_MATERIALIZED", "")
+try:
+    certs = json.loads(raw)
+except json.JSONDecodeError as exc:
+    print(f"OP_CERTS_MATERIALIZED must be valid JSON: {exc}", file=sys.stderr)
+    raise SystemExit(64)
+
+if not isinstance(certs, list) or not certs:
+    print("OP_CERTS_MATERIALIZED must be a non-empty JSON array", file=sys.stderr)
+    raise SystemExit(64)
+
+with open(output_path, "w", encoding="utf-8") as fh:
+    for index, cert in enumerate(certs):
+        if not isinstance(cert, dict):
+            print(f"OP_CERTS_MATERIALIZED[{index}] must be an object", file=sys.stderr)
+            raise SystemExit(64)
+        p12_path = cert.get("p12_path")
+        password_path = cert.get("password_path")
+        if not isinstance(p12_path, str) or not p12_path:
+            print(f"OP_CERTS_MATERIALIZED[{index}].p12_path is required", file=sys.stderr)
+            raise SystemExit(64)
+        if not isinstance(password_path, str) or not password_path:
+            print(f"OP_CERTS_MATERIALIZED[{index}].password_path is required", file=sys.stderr)
+            raise SystemExit(64)
+        if not os.path.isfile(p12_path) or not os.access(p12_path, os.R_OK):
+            print(f"staged certificate is not readable: {p12_path}", file=sys.stderr)
+            raise SystemExit(64)
+        if not os.path.isfile(password_path) or not os.access(password_path, os.R_OK):
+            print(f"staged password is not readable: {password_path}", file=sys.stderr)
+            raise SystemExit(64)
+        fh.write(f"{p12_path}\t{password_path}\n")
+PY
+then
+	exit 64
+fi
+
+cert_count="$(tr -d '[:space:]' < "$materialized_certs_file")"
+
+log_line "mode=secure home=$HOME config=$config_path staged_certs=$cert_count"
 
 case "$browser_kind" in
 	firefox)
 		profile_dir="$tmp_root/firefox-profile"
 		mkdir -p "$profile_dir"
 		certutil -N -d "sql:$profile_dir" --empty-password
-		pk12util -i "$p12_path" -d "sql:$profile_dir" -W "$p12_password"
+		while IFS=$'\t' read -r staged_p12 staged_password; do
+			p12_password="$(cat "$staged_password")"
+			pk12util -i "$staged_p12" -d "sql:$profile_dir" -W "$p12_password"
+			unset p12_password
+		done < "$materialized_certs_file"
 		log_line "launch profile=$profile_dir browser=$browser_bin"
 		exec env "${language_env[@]}" "$browser_bin" --profile "$profile_dir" --no-remote "$@"
 		;;
@@ -126,7 +166,11 @@ case "$browser_kind" in
 		profile_dir="$tmp_root/chrome-profile"
 		mkdir -p "$home_dir/.pki/nssdb" "$profile_dir"
 		certutil -N -d "sql:$home_dir/.pki/nssdb" --empty-password
-		pk12util -i "$p12_path" -d "sql:$home_dir/.pki/nssdb" -W "$p12_password"
+		while IFS=$'\t' read -r staged_p12 staged_password; do
+			p12_password="$(cat "$staged_password")"
+			pk12util -i "$staged_p12" -d "sql:$home_dir/.pki/nssdb" -W "$p12_password"
+			unset p12_password
+		done < "$materialized_certs_file"
 		log_line "launch profile=$profile_dir home_override=$home_dir browser=$browser_bin"
 		exec env HOME="$home_dir" "${language_env[@]}" "$browser_bin" --lang=ja --no-sandbox --disable-dev-shm-usage --user-data-dir="$profile_dir" --no-first-run --password-store=basic "$@"
 		;;

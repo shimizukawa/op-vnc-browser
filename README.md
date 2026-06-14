@@ -35,19 +35,21 @@ to use secure browse with op (1password) + vnc
 1. Start the Codespace and run the final setup command
 
    - start codespace
-   - run `bash setup` after setting `OP_CERT_P12_REF` and `OP_CERT_PASSWORD_REF`
+   - run `bash setup` after setting `OP_CERTS`
    - enter the service account token when prompted
-   - if setup succeeds, the token can access the required 1Password items and setup the client certificate
+   - if setup succeeds, the token can access the required 1Password items and set up the client certificates
 
    ```bash
-   $ export OP_CERT_P12_REF='op://<vault>/<item>/<file>'
-   $ export OP_CERT_PASSWORD_REF='op://<vault>/<item>/<field>'
+   $ export OP_CERTS='[
+     {"p12_ref":"op://<vault>/<item1>/<file>","password_ref":"op://<vault>/<item1>/<field>"},
+     {"p12_ref":"op://<vault>/<item2>/<file>","password_ref":"op://<vault>/<item2>/<field>"}
+   ]'
    $ bash setup
    1Password service account token:
    Browser certificate launcher configured.
    ```
 
-   `OP_CERT_P12_REF` and `OP_CERT_PASSWORD_REF` are read from the environment. The command prompts only for the 1Password service account token with hidden input, materializes the certificate and password into `/run/op-vnc-browser`, writes only those volatile paths to `launcher.env`, and regenerates the browser launchers for the noVNC session.
+   `OP_CERTS` is read from the environment as JSON. Each entry must provide `p12_ref` and `password_ref`. The command prompts only for the 1Password service account token with hidden input, materializes each certificate pair into `/run/op-vnc-browser`, writes the staged paths as `OP_CERTS_MATERIALIZED` in `launcher.env`, and regenerates the browser launchers for the noVNC session.
 
 2. Open the noVNC desktop and start Firefox or Chrome from the Fluxbox menu
 
@@ -78,8 +80,9 @@ This devcontainer mounts a dedicated tmpfs at `/run/op-vnc-browser` and the laun
 3. Point the launcher at the stored secrets
 
    ```bash
-   export OP_CERT_P12_REF='op://<vault>/<item>/<file>'
-   export OP_CERT_PASSWORD_REF='op://<vault>/<item>/<field>'
+   export OP_CERTS='[
+     {"p12_ref":"op://<vault>/<item>/<file>","password_ref":"op://<vault>/<item>/<field>"}
+   ]'
    bash setup
    ```
 
